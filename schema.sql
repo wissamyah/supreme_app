@@ -1,10 +1,13 @@
--- Users table
+CREATE TYPE user_role AS ENUM ('admin', 'moderator', 'operator');
+CREATE TYPE transaction_type AS ENUM ('sale', 'payment', 'credit_note');
+CREATE TYPE loading_status AS ENUM ('Pending', 'Partially Loaded', 'Fully Loaded');
+
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL, -- Hashed with password_hash()
-    role ENUM('admin', 'moderator', 'operator') NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role user_role NOT NULL,
     last_session TIMESTAMP,
     is_blocked BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -12,14 +15,12 @@ CREATE TABLE users (
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_email ON users(email);
 
--- Categories table
 CREATE TABLE categories (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) UNIQUE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Products table
 CREATE TABLE products (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -30,7 +31,6 @@ CREATE TABLE products (
 );
 CREATE INDEX idx_products_category_id ON products(category_id);
 
--- Production table
 CREATE TABLE production (
     id SERIAL PRIMARY KEY,
     product_id INT REFERENCES products(id) ON DELETE RESTRICT,
@@ -41,7 +41,6 @@ CREATE TABLE production (
 CREATE INDEX idx_production_product_id ON production(product_id);
 CREATE INDEX idx_production_date ON production(production_date);
 
--- Customers table
 CREATE TABLE customers (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
@@ -52,11 +51,21 @@ CREATE TABLE customers (
 );
 CREATE INDEX idx_customers_name ON customers(name);
 
--- Transactions table (ledger)
+CREATE TABLE sales (
+    id SERIAL PRIMARY KEY,
+    customer_id INT REFERENCES customers(id) ON DELETE RESTRICT,
+    sale_date DATE NOT NULL,
+    total_amount DECIMAL(15, 2) NOT NULL,
+    loading_status loading_status DEFAULT 'Pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_sales_customer_id ON sales(customer_id);
+CREATE INDEX idx_sales_date ON sales(sale_date);
+
 CREATE TABLE transactions (
     id SERIAL PRIMARY KEY,
     customer_id INT REFERENCES customers(id) ON DELETE CASCADE,
-    type ENUM('sale', 'payment', 'credit_note') NOT NULL,
+    type transaction_type NOT NULL,
     amount DECIMAL(15, 2) NOT NULL,
     description TEXT,
     transaction_date DATE NOT NULL,
@@ -65,19 +74,6 @@ CREATE TABLE transactions (
 );
 CREATE INDEX idx_transactions_customer_id ON transactions(customer_id);
 
--- Sales table
-CREATE TABLE sales (
-    id SERIAL PRIMARY KEY,
-    customer_id INT REFERENCES customers(id) ON DELETE RESTRICT,
-    sale_date DATE NOT NULL,
-    total_amount DECIMAL(15, 2) NOT NULL,
-    loading_status ENUM('Pending', 'Partially Loaded', 'Fully Loaded') DEFAULT 'Pending',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX idx_sales_customer_id ON sales(customer_id);
-CREATE INDEX idx_sales_date ON sales(sale_date);
-
--- Sale Items table
 CREATE TABLE sale_items (
     id SERIAL PRIMARY KEY,
     sale_id INT REFERENCES sales(id) ON DELETE CASCADE,
@@ -88,7 +84,6 @@ CREATE TABLE sale_items (
 );
 CREATE INDEX idx_sale_items_sale_id ON sale_items(sale_id);
 
--- Loadings table
 CREATE TABLE loadings (
     id SERIAL PRIMARY KEY,
     customer_id INT REFERENCES customers(id) ON DELETE RESTRICT,
@@ -101,7 +96,6 @@ CREATE TABLE loadings (
 );
 CREATE INDEX idx_loadings_customer_id ON loadings(customer_id);
 
--- Loading Items table
 CREATE TABLE loading_items (
     id SERIAL PRIMARY KEY,
     loading_id INT REFERENCES loadings(id) ON DELETE CASCADE,
@@ -111,7 +105,6 @@ CREATE TABLE loading_items (
 );
 CREATE INDEX idx_loading_items_loading_id ON loading_items(loading_id);
 
--- Audit Log table
 CREATE TABLE audit_logs (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE SET NULL,
